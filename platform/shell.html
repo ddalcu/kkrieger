@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>.kkrieger</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; color: #888; font: 13px sans-serif; overflow: hidden; }
+  canvas { display: block; width: 100vw; height: calc(100vh - 24px); }
+  p { margin: 0; height: 24px; line-height: 24px; text-align: center; }
+</style>
+</head>
+<body>
+<canvas id="canvas" tabindex="-1"></canvas>
+<p>.kkrieger by .theprodukkt &mdash; space: start / jump &middot; click: capture mouse / fire &middot; WASD: move &middot; 1-5: weapons &middot; esc: menu</p>
+<script>
+  var Module = { canvas: document.getElementById('canvas') };
+</script>
+{{{ SCRIPT }}}
+</body>
+</html>

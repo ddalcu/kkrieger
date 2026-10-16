@@ -1,105 +1,114 @@
-# Hi!
+# .kkrieger for macOS and the browser
 
-This is it. Pretty much a history of Farbrausch tools 2001-2011. We've been
-meaning to release all this for ages, in various forms, and always ended up
-not doing it because "we'd just have to clean it up a bit first...".
+**Play: https://ddalcu.github.io/kkrieger/**
 
-No more. This is **not** cleaned up. This is the raw deal, some from old hard
-drives, some fresh from various SVN repositories. This is code written for
-a bunch of different versions of Visual Studio. Some of it is really tricky
-to compile, some really easy. There's some nice clean stuff there, other parts
-are just a complete mess.
+A port of .theprodukkt's 96k first-person shooter .kkrieger (2004) to
+macOS/Metal and WebAssembly/WebGL2. Source: `fr_public/werkkzeug3_kkrieger` (BSD-licensed, Farbrausch/.theprodukkt,
+https://github.com/farbrausch/fr_public), data `data/kkrieger3383.kx`.
 
-The original unmodified code (with a few bug fixes) is archived under the
-"original" tag, in case there's historical interest, but as of April 16, 2012
-the master branch of this repository contains code that builds with Visual
-Studio 2010 (which is presumably more useful to people). We originally
-anticipated that getting everything to work with a recent compiler would
-prove difficult, but it turned out to be fairly easy and required only small
-changes to the code base, so there's little value in keeping the two branches
-separate.
+## Status
 
-All of this is released either under a BSD license or put in the public
-domain (stated per project). Not that you're likely to want to use most of
-this code, but if you want to, we see no reason to keep you.
+**Playable on macOS/Apple Silicon and in the browser.** Loading bar -> press
+Space -> menu (Enter / click) -> game, with textures, lighting, stencil
+shadows, post-processing, HUD text, music and sound effects.
 
-So what do we have in here? Here's the basic directory structure:
+- `make` builds `kkrieger-mac` (Metal).
+- `make web` builds `web/index.html` + `.js` + `.wasm` (Emscripten, WebGL2).
+  Serve the directory over http, e.g. `python3 -m http.server -d web`, and
+  open http://localhost:8000. Browsers start audio only after the first key
+  press or click.
+
+Controls (as the original): W/A/S/D move, mouse look (click to capture the
+mouse; Cmd-Tab on Mac or Esc in the browser releases it), left mouse fire,
+Space jump, 1-5 weapons, Esc menu, Cmd-Q quit (Mac).
+
+The game renders at its in-game resolution option (default 800x600) and is
+letterboxed into the window / canvas.
+
+## Layout
 
 ```
-  altona_wz4/           - Altona and Werkkzeug4. Our most recent code foundation and tool.
-    altona/             - The framework libraries (includes base Werkkzeug4 GUI).
-    wz4/                - Wz4FRlib (demo ops) and Wz4Player.
-  altona2/              - successor of altona
-    altona2/            - The framework libraries (Werkkzeug5 is not yet released)
-  genthree/             - GenThree. Used for Candytron and nothing else.
-    data/               - Candytron data files.
-  kkrunchy/             - kkrunchy 0.23alpha code (latest we could find)
-  kkrunchy_k7/          - kkrunchy_k7 0.23a4/asm07 (most recent version)
-  ktg/                  - OpenKTG texture generator. See below.
-  lekktor/              - May summon Eldritch Abominations. Handle with care.
-  RG2/                  - RauschGenerator 2. Used for several 64k intros.
-    dopplerdefekt/      - data files for fr-029: dopplerdefekt
-    einschlag/          - data files for fr-022: ein.schlag
-    flybye/             - data files for fr-013: flybye
-    welcome_to/         - data files for fr-024: welcome to...
-  v2/                   - V2 synthesizer system. Used for all our intros, kkrieger and debris.
-  werkkzeug3/           - Werkkzeug3. Used for tons of demos and intros.
-    data/               - Source data for kkrieger and some test projects.
-      debris/           - Source data for fr-041: debris.
-      theta/            - Source data for fr-038: theta.
-    w3texlib/           - Werkkzeug 3 texture lib. Used for fr-033.
-    wz_mobile/          - Werkkzeug Mobile. Never got used for anything.
-  werkkzeug3_kkrieger/  - kkrieger branch. Game mode in here might work. :)
+Makefile               PLATFORM=mac (default) -> obj/, PLATFORM=web -> obj-web/
+platform/
+  port.hpp             MSVC->clang shim (force-included), sGATHERARGS
+  callwrap.hpp         operator handler ABI shim (x86 dword slots -> typed args)
+  platform.hpp         what the per-platform files provide to each other
+  common.cpp           platform-independent sSystem_: clock, files, sample
+                       mixer, material plumbing, Windows runtime shims
+  render.hpp           backend interface (b* functions)
+  render_common.cpp    D3D9 semantics: render states, setups, constants,
+                       geometry/texture handles, mip chains, loading screen
+  shader_d3d9.cpp/.hpp D3D9 vs/ps 1.x (and simple 2.0) bytecode -> MSL or GLSL ES
+  render_metal.mm      Metal backend
+  render_gl.cpp        WebGL2 backend
+  main_mac.mm          Cocoa window, event pump, keyboard/mouse, main loop
+  start_mac.mm         CoreText host font, CoreAudio
+  main_web.cpp         canvas, keyboard, pointer lock, rAF main loop (Asyncify)
+  start_web.cpp        canvas-2D host font, Web Audio
+  shell.html           page template for the web build
+src/                   player sources (patched, see below)
+src/v2/                V2 synth core in C++ (fr_public/v2/synth_core.cpp)
+data/                  kkrieger3383.kx: the game's export (embedded at build time)
+.github/workflows/     builds the web version and publishes it to GitHub Pages
 ```
 
-So, here's the sightseeing tips:
+## How the platform layer works
 
-* "ktg" is OpenKTG, a proposal for a simple but relatively powerful and
-  orthogonal subset of texture generation functions - designed around 2007.
-  This is really nice, clean code. If you want to generate textures for WebGL
-  or something like that, turning this into pixel shaders+JS code should work
-  quite well. (There's no nice editor for it, though)
-* GenThree contains a bunch of text files in German with various ideas, from
-  the Candytron timeframe - mostly written by Chaos. Interesting bit of
-  history :)
-* werkkzeug3 is a mess, but come on, debris - you know you want to... :)
-* werkkzeug3_kkrieger is from a branch called "kkrieger" in our SVN repository.
-  It's not the actual kkrieger code, and incorporates changes that were done
-  more than one year after the original kkrieger release. It was, however,
-  branched off before we started not caring about breaking kkrieger
-  compatibility when making changes. You have a better chance of building the
-  game from there than you do from the "regular" werkkzeug3 tree - though both
-  are unlikely to work.
-  If someone really wants a close-to-original werkkzeug3 kkrieger tree, it should
-  be possible to dig up something from 2004 :)
-* altona_wz4 should actually be fully functional. It has been tested and there are
-  binaries which should function as fully-featured demomaker without the need to
-  touch any code. Also it's a good foundation to write your own engine or game
-  or tool or whatever. This stuff has seen heavy duty use in several companies and
-  went through several actual QA departments. It works.
+- **Rendering.** Materials are D3D9 render-state streams plus vs_1_1/ps_1_1
+  bytecode. `shader_d3d9.cpp` translates each setup's bytecode on first use
+  (co-issue, 1.x source/result modifiers, ps constant clamping, vertex fog,
+  alpha test, fixed-function stages for `sSimpleMaterial`) into MSL or GLSL ES
+  3.00. Backends derive pipeline, depth-stencil (two-sided stencil for shadow
+  volumes) and sampler state from the D3D state array at draw time and cache
+  it. GLSL flips y and remaps clip z to GL conventions.
+- **Geometry.** Metal: static Geo handles get their own buffers, dynamic ones
+  come from a per-frame arena (3 frames in flight). WebGL: each handle keeps a
+  CPU copy that is uploaded when it changes.
+- **Main loop.** The engine's blocking loops (loading bar, wait for key, game
+  loop) call `sPlatformPump`; on the web it awaits `requestAnimationFrame`
+  through Asyncify.
+- **Sound.** The x86 asm synth is replaced by ryg's C++ `synth_core.cpp`.
+  CoreAudio / a Web Audio script processor pull 16-bit stereo through the
+  game's sound handler; samples are mixed on top by `sMixSamples`.
 
-Contributors (in alphabetical order):
+## Fixes to the original sources (all marked `port:`)
 
-* Fabian "ryg" Giesen: GenThree, kkrunchy, kkrunchy_k7, ktg, lekktor, RG2,
-  werkkzeug3, werkkzeug3_kkrieger, altona, werkkzeug4
-* Sebastian "Wayfinder" Grillmaier: RG2, dopplerdefekt, ein.schlag, debris,
-  kkrieger
-* Tammo "kb" Hinrichs: V2, RG2, altona, werkkzeug4, flybye, "welcome to", easterparty
-* Thomas "fiver2" / "theunitedstatesofamerica" Mahlke: werkkzeug3, werkkzeug4,
-  debris, kkrieger.
-* Christoph "giZMo" Muetze: genthree, Candytron, RG2, flybye, "welcome to",
-  werkkzeug3, wz_mobile, debris, kkrieger.
-* Dierk "Chaos" Ohlerich: GenThree, lekktor, werkkzeug3, werkkzeug3_kkrieger,  
-  wz_mobile, altona, werkkzeug4
-* Kai "cp" Poethkow: dopplerdefekt, ein.schlag, theta.
-* Ronny Pries: debris.
-* Dennis "Exoticorn" Ranke: RG2, flybye, werkkzeug3_kkrieger.
-* Leonard "paniq" Ritter: V2, theta.
-* Bastian "Tron" Zuehlke: werkkzeug3, werkkzeug4
+Data / format:
+- `kdoc.cpp`: the .kx is the 2004 export: no flags dword/demo name, sample
+  block always present, 1-byte class ids. Viewport (0xf0) and Cylinder (0x82)
+  gained parameters later; they are widened with the editor defaults.
+  Bounds checks on class index and input deltas.
+- `mainplayer.cpp`: the songs are stored in the composer's V2M version and are
+  converted to the current patch layout (`sConvertV2M`) before playback.
 
-Both altona_wz5 and altona2 contain various of the stb_??? libraries from Sean
-Barret, nothings.org.
+64-bit / non-x86 / non-MSVC:
+- `KOp::Init` sized pointer arrays in dwords; `KOp::Exec` packed params as
+  dwords into 64-bit slots; packing pointer smuggled through `WheelSpeed`.
+- Variadic handlers read `(&first)[i]` from the x86 stack (Bitmap_Merge,
+  Material_Add, Scene_Add, Mesh_Add, MinMesh_Add, IPP_Select), as did
+  Mesh_Cube's `(&tx)[j]` and Scene_Walk's `(&l0)[i]`; scene handlers read
+  `&s.x` as nine floats across three params (now one `sFSRT`).
+- Engine paint-job arena sized for 32-bit structs.
+- Hand-written MMX: BilinearFilter lost its 0x8000 bias (all resampling ops
+  returned black), Bitmap_Inner color range used data[1] instead of
+  data[1]-data[0].
+- The code indexes struct members as arrays (`(&v.x)[i]`), which MSVC
+  tolerates; clang's type-based alias analysis drops such stores (in the wasm
+  build Mesh_Cube lost its y/z face mapping, leaving holes in the level), so
+  everything is built with `-fno-strict-aliasing`.
 
-Have fun!
-(released April 2012)
-(updated October 2014 for Altona2)
+Player build (`sINTRO`) paths the 2004 player needed:
+- `Engine_::ProcessPortals` (kkrieger paints its level through sectors).
+- `Bitmap_Text` font pages (menu and HUD text).
+
+Upstream bugs:
+- `KKriegerGame::SetPainter` walked into freed caches.
+- `Bitmap_Twirl` CSLookup read one past its table.
+- `synth_core.cpp` `init` cleared `sizeof(this)` bytes.
+- texture handle 0 is used as a placeholder by GenOverlayManager; the backend
+  reserves it so ref counting cannot free a real texture there.
+
+## License
+
+The original code is BSD-licensed (see LICENSE.txt); the V2 synth was placed
+in the public domain by Tammo "kb" Hinrichs. The port follows the same terms.
